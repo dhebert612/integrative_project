@@ -11,6 +11,13 @@ services:
     volumes:
       - vw-data:/data
 
+  portfolio:
+    build:
+      context: .
+      dockerfile: portfolio.Dockerfile
+    container_name: portfolio
+    restart: unless-stopped
+
   cloudflared:
     image: cloudflare/cloudflared:latest@sha256:6b599ca3e974349ead3286d178da61d291961182ec3fe9c505e1dd02c8ac31b0
     container_name: cloudflared
