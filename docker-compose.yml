@@ -8,5 +8,11 @@ services:
       - SIGNUPS_ALLOWED=true
     volumes:
       - ./vw-data/:/data/
-    ports:
-      - 127.0.0.1:8000:80
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: cloudflared
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run --token ${TUNNEL_TOKEN}
+    depends_on:
+      - vaultwarden
