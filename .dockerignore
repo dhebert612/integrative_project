@@ -1,3 +1,4 @@
 .env
 vw-data/
 secret.txt
+grafana-password.txt
