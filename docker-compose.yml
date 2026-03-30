@@ -35,10 +35,54 @@ services:
     container_name: nginx
     restart: unless-stopped
 
+  grafana:
+    image: grafana/grafana:12.3.6-security-01@sha256:50db91a7064528ad31b56e589ce82cbc80674015dcea7316f38ee338db23c043
+    container_name: grafana
+    restart: unless-stopped
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD__FILE=/run/secrets/grafana-password
+      - GF_USERS_ALLOW_SIGN_UP=false
+    secrets:
+      - grafana-password
+    volumes:
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      - prometheus
+
+  prometheus:
+    image: prom/prometheus:v3-distroless@sha256:4d2174874988fe0d8356fa5c799210767661a2ffce6bb03cdc64306f6579d7b9
+    container_name: prometheus
+    restart: unless-stopped
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+
+  node-exporter:
+    image: prom/node-exporter:latest@sha256:3ac34ce007accad95afed72149e0d2b927b7e42fd1c866149b945b84737c62c3
+    container_name: node-exporter
+    restart: unless-stopped
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.sysfs=/host/sys'
+      - '--path.rootfs=/rootfs'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+
 secrets:
   tunnel-token:
     file: ./secret.txt
+  grafana-password:
+    file: ./grafana-password.txt
 
 volumes:
   vw-data:
+  prometheus-data:
+  grafana-data:
 
