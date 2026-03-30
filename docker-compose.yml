@@ -8,6 +8,8 @@ services:
     environment:
       - DOMAIN=https://vault.davidhebert.site
       - SIGNUPS_ALLOWED=true
+    secrets:
+    - vaultwarden-password
     volumes:
       - vw-data:/data
 
@@ -89,6 +91,8 @@ secrets:
     file: ./secret.txt
   grafana-password:
     file: ./grafana-password.txt
+  vaultwarden-password:
+    file: ./vaultwarden-password.txt
 
 volumes:
   vw-data:

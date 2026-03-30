@@ -4,4 +4,9 @@ RUN addgroup -g 1000 vaultwarden && \
     adduser -u 1000 -G vaultwarden -h /data -D vaultwarden && \
     chown -R vaultwarden:vaultwarden /data /web-vault
 
+COPY vaultwarden-entrypoint.sh /vaultwarden-entrypoint.sh
+RUN chmod +x /vaultwarden-entrypoint.sh
+
 USER vaultwarden
+
+ENTRYPOINT ["/vaultwarden-entrypoint.sh"]
