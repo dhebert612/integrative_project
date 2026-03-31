@@ -2,3 +2,7 @@
 vw-data/
 secret.txt
 grafana-password.txt
+vaultwarden-password.txt
+donetick-JWT.txt
+
+*.Dockerfile

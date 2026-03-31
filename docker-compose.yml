@@ -13,6 +13,29 @@ services:
     volumes:
       - vw-data:/data
 
+  donetick:
+    build:
+      context: .
+      dockerfile: donetick.Dockerfile
+    container_name: donetick
+    restart: unless-stopped
+    volumes:
+      - donetick-data:/donetick-data
+    environment:
+      - DT_ENV=selfhosted
+      - DT_SQLITE_PATH=/donetick-data/donetick.db
+      - DT_SERVER_CORS_ALLOW_ORIGINS=https://todo.davidhebert.site,https://localhost,capacitor://localhost
+      - DT_SERVER_SERVE_FRONTEND=true
+      - TZ=America/Montreal
+    secrets:
+      - donetick-JWT
+    healthcheck:
+      test: wget --no-verbose --tries=1 --spider http://localhost:2021/api/v1/health || exit 1
+      start_period: 1m
+      timeout: 5s
+      interval: 1m
+      retries: 3
+
   portfolio:
     build:
       context: .
@@ -29,6 +52,16 @@ services:
       - tunnel-token
     depends_on:
       - vaultwarden
+
+  homepage:
+    build:
+      context: .
+      dockerfile: homepage.Dockerfile
+    container_name: homepage
+    restart: unless-stopped
+    user: "0:0"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
 
   nginx:
     build: 
@@ -103,9 +136,12 @@ secrets:
     file: ./grafana-password.txt
   vaultwarden-password:
     file: ./vaultwarden-password.txt
+  donetick-JWT:
+    file: ./donetick-JWT.txt
 
 volumes:
   vw-data:
   prometheus-data:
   grafana-data:
+  donetick-data:
 
