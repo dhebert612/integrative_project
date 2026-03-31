@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+	<title>Home Services</title>
+	<link
+		rel="stylesheet"
+		href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css"
+	/>
+	<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+	<main class="page">
+		<header class="page-header">
+			<h1>David's Homepage</h1>
+			<p>Mock service status cards</p>
+		</header>
+
+		<a class="portfolio-btn" href="https://davidhebert.site" aria-label="Checkout my portfolio">
+			Checkout my portfolio
+		</a>
+
+		<section class="services-grid" aria-label="Services">
+			<a class="service-card service-link" href="https://vault.davidhebert.site" aria-label="Open Vaultwarden service" data-container="vaultwarden">
+				<div class="card-header">
+					<div>
+						<h2>Vaultwarden</h2>
+						<p class="centered-subtitle">Password Manager</p>
+					</div>
+				</div>
+
+				<div class="hero-icon">
+					<i class="bi bi-shield-lock-fill" aria-hidden="true"></i>
+				</div>
+
+				<span class="status-circle status-warning" data-status-dot title="Checking..."></span>
+			</a>
+
+			<a class="service-card service-link" href="https://todo.davidhebert.site" aria-label="Open DoneTick service" data-container="donetick">
+				<div class="card-header">
+					<div>
+						<h2>DoneTick</h2>
+						<p class="centered-subtitle">Task Manager</p>
+					</div>
+				</div>
+
+				<div class="hero-icon">
+					<i class="bi bi-check2-square" aria-hidden="true"></i>
+				</div>
+
+				<span class="status-circle status-warning" data-status-dot title="Checking..."></span>
+			</a>
+
+			<a class="service-card service-link" href="https://status.davidhebert.site" aria-label="Open Grafana and Prometheus service" data-container="grafana,prometheus">
+				<div class="card-header">
+					<div>
+						<h2>Grafana + Prometheus</h2>
+						<p class="centered-subtitle">Monitoring</p>
+					</div>
+				</div>
+
+				<div class="hero-icon">
+					<img class="prom-logo" src="https://cdn.simpleicons.org/prometheus/2563EB" alt="Prometheus logo" />
+				</div>
+
+				<span class="status-circle status-warning" data-status-dot title="Checking..."></span>
+			</a>
+		</section>
+	</main>
+
+	<script>
+		const API_BASE = '/api';
+		const SSE_RETRY_MS = 3000;
+		const FALLBACK_POLL_MS = 10000;
+		const serviceCards = document.querySelectorAll('.service-card[data-container]');
+		const latestContainerState = new Map();
+		let sseConnected = false;
+		let sseStream = null;
+		let sseReconnectTimer = null;
+
+		function stateToHealth(state) {
+			if (state === 'running') {
+				return 'online';
+			}
+			if (state === 'restarting' || state === 'paused') {
+				return 'warning';
+			}
+			return 'offline';
+		}
+
+		function setDotStatus(dot, status, details) {
+			dot.classList.remove('status-online', 'status-warning', 'status-offline');
+			dot.classList.add(`status-${status}`);
+			dot.title = details;
+		}
+
+		function renderCardFromMap(card) {
+			const dot = card.querySelector('[data-status-dot]');
+			const containerNames = card.dataset.container.split(',').map((name) => name.trim()).filter(Boolean);
+
+			const knownContainers = containerNames
+				.map((name) => latestContainerState.get(name))
+				.filter(Boolean);
+
+			if (knownContainers.length !== containerNames.length) {
+				setDotStatus(dot, 'warning', 'Checking...');
+				return;
+			}
+
+			const healthStates = knownContainers.map((container) => stateToHealth(container.state));
+			const hasOffline = healthStates.includes('offline');
+			const hasWarning = healthStates.includes('warning');
+
+			let overallStatus = 'online';
+			if (hasOffline) {
+				overallStatus = 'offline';
+			} else if (hasWarning) {
+				overallStatus = 'warning';
+			}
+
+			const summary = knownContainers.map((container) => `${container.name}: ${container.state}`).join(' | ');
+			setDotStatus(dot, overallStatus, summary);
+		}
+
+		function renderAllCards() {
+			serviceCards.forEach((card) => renderCardFromMap(card));
+		}
+
+		async function loadCardStatus(card) {
+			const containerNames = card.dataset.container.split(',').map((name) => name.trim()).filter(Boolean);
+
+			try {
+				const responses = await Promise.all(
+					containerNames.map((name) =>
+						fetch(`${API_BASE}/containers/${encodeURIComponent(name)}`).then(async (res) => {
+							if (!res.ok) {
+								throw new Error(`Container ${name} unavailable`);
+							}
+							return res.json();
+						})
+					)
+				);
+
+				responses.forEach((container) => {
+					latestContainerState.set(container.name, container);
+				});
+				renderCardFromMap(card);
+			} catch (error) {
+				const dot = card.querySelector('[data-status-dot]');
+				setDotStatus(dot, 'offline', 'Status check failed');
+			}
+		}
+
+		async function refreshStatuses() {
+			await Promise.all(Array.from(serviceCards).map((card) => loadCardStatus(card)));
+		}
+
+		function getSubscribedContainerNames() {
+			const names = new Set();
+
+			serviceCards.forEach((card) => {
+				card.dataset.container
+					.split(',')
+					.map((name) => name.trim())
+					.filter(Boolean)
+					.forEach((name) => names.add(name));
+			});
+
+			return Array.from(names);
+		}
+
+		function startStatusSse() {
+			const subscribedNames = getSubscribedContainerNames();
+			const namesParam = encodeURIComponent(subscribedNames.join(','));
+			if (sseStream) {
+				sseStream.close();
+			}
+
+			sseStream = new EventSource(`${API_BASE}/containers/stream?names=${namesParam}`);
+
+			sseStream.onopen = () => {
+				sseConnected = true;
+				refreshStatuses();
+			};
+
+			sseStream.onmessage = (event) => {
+				try {
+					const payload = JSON.parse(event.data);
+
+					if (payload.type === 'snapshot' && Array.isArray(payload.containers)) {
+						payload.containers.forEach((container) => {
+							latestContainerState.set(container.name, container);
+						});
+						renderAllCards();
+						return;
+					}
+
+					if (payload.type === 'update' && payload.container?.name) {
+						latestContainerState.set(payload.container.name, payload.container);
+						renderAllCards();
+					}
+				} catch (error) {
+					console.error('Failed to parse SSE payload', error);
+				}
+			};
+
+			sseStream.onerror = () => {
+				sseConnected = false;
+				sseStream.close();
+				console.warn('SSE disconnected. Falling back to periodic refresh.');
+				refreshStatuses();
+
+				if (!sseReconnectTimer) {
+					sseReconnectTimer = setTimeout(() => {
+						sseReconnectTimer = null;
+						startStatusSse();
+					}, SSE_RETRY_MS);
+				}
+			};
+
+			return sseStream;
+		}
+
+		refreshStatuses();
+		startStatusSse();
+		setInterval(() => {
+			if (!sseConnected) {
+				refreshStatuses();
+			}
+		}, FALLBACK_POLL_MS);
+	</script>
+</body>
+</html>
