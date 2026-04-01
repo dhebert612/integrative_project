@@ -24,7 +24,7 @@ services:
     environment:
       - DT_ENV=selfhosted
       - DT_SQLITE_PATH=/donetick-data/donetick.db
-      - DT_SERVER_CORS_ALLOW_ORIGINS=https://todo.davidhebert.site,https://localhost,capacitor://localhost
+      - DT_SERVER_CORS_ALLOW_ORIGINS=https://todo.davidhebert.site,https://locahost,http://localhost,http://127.0.0.1
       - DT_SERVER_SERVE_FRONTEND=true
       - TZ=America/Montreal
     secrets:
